@@ -3,6 +3,7 @@ import Web3 from 'web3';
 import * as XLSX from 'xlsx';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { tokenContract } from './contract/listen-contract.js';
 
 const web3 = new Web3(Web3.givenProvider);
 
@@ -10,12 +11,129 @@ export default function App() {
   const [walletAddress, setWalletAddress] = useState('');
   const [walletBalance, setWalletBalance] = useState('');
   const [isConnected, setIsConnected] = useState(false);
-  const [isNetworkSwitched, setIsNetworkSwitched] = useState(false);
   const [file, setFile] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
   const [rowCount, setRowCount] = useState(0);
   const [rowAmount, setRowAmount] = useState(0);
   const fileRef = useRef(null);
+
+  // const [transferWalletAddress, setTransferWalletAddress] = useState('');
+  // const [transferAmount, setTransferAmount] = useState('');
+
+  const [transferWalletAddressFromExcel, setTransferWalletAddressFromExcel] = useState([]);
+  const [transferAmountFromExcel, setTransferAmountFromExcel] = useState([]);
+
+
+
+
+  // const handleTransferTokenFromExcel = async () => {
+  //   const contractResult = await tokenContract();
+  //   if (walletAddress && transferWalletAddressFromExcel.length && transferAmountFromExcel.length) {
+  //     try {
+  //       const decimals = await contractResult.decimals();
+  
+  //       for (let i = 0; i < transferWalletAddressFromExcel.length; i++) {
+  //         const amountToSend = (BigInt(Math.floor(Number(transferAmountFromExcel[i]) * Math.pow(10, decimals)))).toString();
+  //         const addressToSend = transferWalletAddressFromExcel[i];
+  
+  //         const balance = await contractResult.balanceOf(walletAddress);
+  //         if (balance < amountToSend) {
+  //           toast.error('Insufficient balance');
+  //           return;
+  //         }
+  
+  //         const transferResult = await contractResult.transfer(addressToSend, amountToSend);
+  //         console.log(`Transfer result for ${addressToSend}:`, transferResult);
+  //       }  
+  
+  //       toast.success('All tokens transferred successfully');
+  //     } catch (error) {
+  //       console.error('Error transferring tokens', error);
+  //       toast.error('Error transferring tokens');
+  //     }
+  //   } else {
+  //     toast.error('Please provide valid wallet addresses and amounts');
+  //   }
+  // };
+
+
+  
+
+  const handleTransferTokenFromExcel = async () => {
+    const contractResult = await tokenContract();
+    if (walletAddress && transferWalletAddressFromExcel.length && transferAmountFromExcel.length) {
+      try {
+        const decimals = await contractResult.decimals();
+        const batchTransfers = [];
+  
+        for (let i = 0; i < transferWalletAddressFromExcel.length; i++) {
+          const amountToSend = (BigInt(Math.floor(Number(transferAmountFromExcel[i]) * Math.pow(10, decimals)))).toString();
+          const addressToSend = transferWalletAddressFromExcel[i];
+  
+          batchTransfers.push(contractResult.transfer(addressToSend, amountToSend));
+        }
+  
+        const batchTransferResult = await Promise.all(batchTransfers);
+        console.log(`Batch transfer result:`, batchTransferResult);
+        toast.success('All tokens transferred successfully');
+        setTimeout(() => {
+          window.location.reload(); 
+        }, 10000);
+      } catch (error) {
+        console.error('Error transferring tokens', error);
+        toast.error('Error transferring tokens');
+      }
+    } else {
+      toast.error('Please provide valid wallet addresses and amounts');
+    }
+  };
+  
+  
+
+
+
+  // const handleTransferToken = async () => {
+  //   const contractResult = await tokenContract();
+  //   if (walletAddress && transferWalletAddress && transferAmount) {
+  //     try {
+  //       const decimals = await contractResult.decimals();
+  //       const amountToSend = (BigInt(Math.floor(Number(transferAmount) * Math.pow(10, decimals)))).toString();
+  
+  //       const balance = await contractResult.balanceOf(walletAddress);
+  //       if (balance < amountToSend) {
+  //         toast.error('Insufficient balance');
+  //         return;
+  //       }
+  
+  //       const transferResult = await contractResult.transfer(transferWalletAddress, amountToSend);
+  //       console.log(transferResult);
+  //       toast.success('Token transferred successfully');
+  //     } catch (error) {
+  //       console.error('Error transferring token', error);
+  //       toast.error('Error transferring token');
+  //     }
+  //   } else {
+  //     toast.error('Please provide a valid wallet address and amount');
+  //   }
+  // };
+  
+
+
+  const getBalance = async () => {
+    const contractResult = await tokenContract();
+    if (walletAddress && contractResult) {
+      const balanceOf = await contractResult.balanceOf(walletAddress);
+      const decimals = await contractResult.decimals();
+      setWalletBalance(Number(balanceOf) / Math.pow(10, decimals));
+    }
+  };
+
+  useEffect(() => {
+    if (walletAddress) {
+      // handleTransferToken();
+      getBalance();
+    }
+  }, [walletAddress]);
 
   useEffect(() => {
     const handleAccountsChanged = (accounts) => {
@@ -25,55 +143,46 @@ export default function App() {
       } else {
         const address = accounts[0];
         setWalletAddress(address);
-        web3.eth.getBalance(address).then((balance) => {
-          const formattedBalance = web3.utils.fromWei(balance, 'ether');
-          setWalletBalance(formattedBalance);
-        });
       }
     };
-
+  
     const handleDisconnect = () => {
       handleDisconnectMetamask();
     };
-
+  
     if (window.ethereum) {
       window.ethereum.on('accountsChanged', handleAccountsChanged);
       window.ethereum.on('disconnect', handleDisconnect);
-
+  
       web3.eth.getAccounts().then((accounts) => {
         if (accounts.length > 0) {
           handleAccountsChanged(accounts);
           setIsConnected(true);
         }
       });
-
-      window.ethereum.request({ method: 'eth_accounts' }).then((accounts) => {
+  
+      window.ethereum.request({ method: 'eth_requestAccounts' }).then((accounts) => {
         if (accounts.length > 0) {
           setWalletAddress(accounts[0]);
-          web3.eth.getBalance(accounts[0]).then((balance) => {
-            const formattedBalance = web3.utils.fromWei(balance, 'ether');
-            setWalletBalance(formattedBalance);
-          });
           setIsConnected(true);
         }
       });
     }
-
+  
     return () => {
       if (window.ethereum) {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
         window.ethereum.removeListener('disconnect', handleDisconnect);
       }
     };
-  }, []);
+    }, []);
 
   const switchToBSC = async () => {
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x38' }]
+        params: [{ chainId: '0x61' }]
       });
-      toast.success('Switched to Binance Smart Chain');
       return true;
     } catch (error) {
       if (error.code === 4902) {
@@ -82,28 +191,25 @@ export default function App() {
             method: 'wallet_addEthereumChain',
             params: [
               {
-                chainId: '0x38',
-                chainName: 'Binance Smart Chain',
-                rpcUrls: ['https://bsc-dataseed.binance.org/'],
+                chainId: '0x61',
+                chainName: 'Binance Smart Chain Testnet',
+                rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
                 nativeCurrency: {
                   name: 'Binance Coin',
                   symbol: 'BNB',
                   decimals: 18
                 },
-                blockExplorerUrls: ['https://bscscan.com/']
+                blockExplorerUrls: ['https://testnet.bscscan.com/']
               }
             ]
           });
-          toast.success('Binance Smart Chain added');
           return true;
         } catch (addError) {
-          console.error("Error adding BSC network", addError);
-          toast.error('Error adding Binance Smart Chain');
+          console.error("Error adding BSC Testnet network", addError);
           return false;
         }
       } else {
-        console.error("Error switching to BSC network", error);
-        toast.error('Error switching to Binance Smart Chain');
+        console.error("Error switching to BSC Testnet network", error);
         return false;
       }
     }
@@ -114,7 +220,7 @@ export default function App() {
       try {
         const network = await web3.eth.net.getId();
         let switched = true;
-        if (network !== 56) {
+        if (network !== 97) {
           switched = await switchToBSC();
         }
 
@@ -122,18 +228,10 @@ export default function App() {
           const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
           const address = accounts[0];
           setWalletAddress(address);
-
-          const balance = await web3.eth.getBalance(address);
-          const formattedBalance = web3.utils.fromWei(balance, 'ether');
-          setWalletBalance(formattedBalance);
-
           setIsConnected(true);
-          setIsNetworkSwitched(false);
-          toast.success('Metamask connected');
         }
       } catch (error) {
         console.error("Error connecting to Metamask", error);
-        toast.error('Error connecting to Metamask');
       }
     } else {
       alert('Please install Metamask!');
@@ -146,7 +244,6 @@ export default function App() {
       setWalletAddress('');
       setWalletBalance('');
       setIsConnected(false);
-      setIsNetworkSwitched(false);
     } catch (error) {
       console.error("Error disconnecting from Metamask", error);
       toast.error('Error disconnecting from Metamask');
@@ -162,18 +259,22 @@ export default function App() {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
+  
         const tokens = jsonData.map(row => row.tokens);
+        console.log(tokens);
+        setTransferWalletAddressFromExcel(jsonData.map(row => row.tokens));
+  
         const amounts = jsonData.map(row => row.amount);
-
-        // Check for empty values
+        console.log(amounts);
+        setTransferAmountFromExcel(jsonData.map(row => row.amount));
+  
         const hasEmptyValues = tokens.some(token => !token) || amounts.some(amount => !amount);
-
+  
         if (hasEmptyValues) {
           toast.error("The Excel sheet contains empty values. Please fill all values before uploading.");
           return;
         }
-
+  
         if (tokens.length === amounts.length) {
           setRowCount(tokens.length);
           const totalAmount = amounts.reduce((sum, value) => sum + value, 0);
@@ -185,8 +286,8 @@ export default function App() {
       };
       reader.readAsArrayBuffer(file);
     }
-  };
-
+  }; 
+  
   const handleConfirmUpload = () => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -219,8 +320,10 @@ export default function App() {
         });
     };
     reader.readAsArrayBuffer(file);
+    handleTransferTokenFromExcel();
     setShowPopup(false);
   };
+  
 
   const handleCancelUpload = () => {
     toast.error('File submission canceled');
@@ -230,7 +333,7 @@ export default function App() {
   return (
     <div className='p-3 max-w-lg mx-auto'>
       <ToastContainer />
-      <h1 className='text-center font-bold mt-10'>Connect only BNB network wallet</h1>
+      <h1 className='text-center font-bold mt-10'>Connect only BNB Testnet network wallet</h1>
       <div className='flex flex-col gap-4 flex-1 mt-5'>
         {isConnected ? (
           <button
@@ -252,7 +355,7 @@ export default function App() {
         <p>Wallet Address: {walletAddress}</p>
       </div>
       <div className='flex flex-col gap-4 flex-1 mt-5'>
-        <p>Wallet Balance: {walletBalance} BNB</p>
+        <p>Wallet Balance: {walletBalance} USDT</p>
       </div>
 
       {isConnected && (
@@ -296,8 +399,37 @@ export default function App() {
             </div>
           </div>
         </div>
-
       )}
+
+      {/* <div className='flex gap-2 flex-1 mt-5'>
+        <input
+          type="text"
+          placeholder='Wallet Address'
+          onChange={(e) => setTransferWalletAddress(e.target.value)}
+          value={transferWalletAddress}
+          id='walletaddress'
+          className='border w-60 p-3 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+        />
+        <input
+          type="text"
+          placeholder='Amount'
+          onChange={(e) => setTransferAmount(e.target.value)}
+          value={transferAmount}
+          id='amount'
+          className='border w-60 p-3 rounded-lg focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+        />
+      </div>
+
+      <div className='flex flex-col gap-4 flex-1 mt-5'>
+        <button
+          type='submit'
+          onClick={handleTransferToken}
+          className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95'
+        >
+          Submit
+        </button>
+      </div> */}
+
     </div>
   );
 }

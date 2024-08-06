@@ -5,10 +5,13 @@ const tokenAddress = '0xeB5e838Ee0EA3E1de58451A09eb032EDE31C79c7';
 
 export const tokenContract = async () => {
     const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const contract = new ethers.Contract(tokenAddress, stakeContractABI, provider.getSigner());
+    const signer = provider.getSigner();
+    const contract = new ethers.Contract(tokenAddress, stakeContractABI, signer);
+    // const contract = new ethers.Contract(tokenAddress, stakeContractABI, provider);
+    // const contract = new ethers.Contract(tokenAddress, stakeContractABI, provider.getSigner());
+    console.log(contract);
     return contract;
 };
-
 
 
 
