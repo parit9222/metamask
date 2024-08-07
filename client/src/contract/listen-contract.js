@@ -9,7 +9,7 @@ export const tokenContract = async () => {
     const contract = new ethers.Contract(tokenAddress, stakeContractABI, signer);
     // const contract = new ethers.Contract(tokenAddress, stakeContractABI, provider);
     // const contract = new ethers.Contract(tokenAddress, stakeContractABI, provider.getSigner());
-    console.log(contract);
+    // console.log(contract);
     return contract;
 };
 
